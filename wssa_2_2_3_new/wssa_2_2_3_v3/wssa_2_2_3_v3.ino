@@ -87,6 +87,7 @@ int pin = RED;
 //}
 SemaphoreHandle_t sem;
 QueueHandle_t serialCharQueue;
+bool seqInput = false;
 String blinkList[] = {"red", "green", "blue", "redgreen", "redblue", "greenblue", "redgreenblue"};
 int seqCount = 0;
 void setup() {
@@ -166,8 +167,8 @@ void loop() {
 //}
 void timeBlink (void *arg){
   while(1){
-    bool seqInput = false;
     xSemaphoreTake(sem, portMAX_DELAY);
+    SerialUSB.println("running");
     if (strBlink == "seq\n"){
       strBlink = blinkList[seqCount];
       seqCount++;
@@ -175,7 +176,6 @@ void timeBlink (void *arg){
     } else if (strBlink == "queue"){
       charToColor();
       SerialUSB.println("strBlink color " + strBlink);
-      seqInput = true;
     }
     if (strBlink.indexOf("red") >= 0){
       digitalWrite(RED, HIGH);
@@ -199,7 +199,7 @@ void timeBlink (void *arg){
     digitalWrite(GREEN, LOW);
     xSemaphoreGive(sem);
     vTaskDelay((500L * configTICK_RATE_HZ)/ 1000L);
-    if (seqCount != 0 && strBlink != "queue"){
+    if (seqCount != 0){
       strBlink = "seq\n";
       if (seqCount >= sizeof(blinkList)/ sizeof(blinkList[0])){
         seqCount = 0;
@@ -213,18 +213,21 @@ void timeBlink (void *arg){
 
 void serialBlink (void *arg){
   while(1){
-    xSemaphoreTake(sem, portMAX_DELAY);
     if (SerialUSB.available()){
+      xSemaphoreTake(sem, portMAX_DELAY);
       String re = SerialUSB.readString();
       SerialUSB.println(re);
       if (re.indexOf("blue") >= 0 ||re.indexOf("red") >= 0 || re.indexOf("green") >= 0 || re.indexOf("seq") >= 0){
         seqCount = 0;
+        seqInput = false;
         strBlink = re;
         SerialUSB.print("Light changed to ");
         SerialUSB.println(strBlink);
       }
       else {
+        seqCount = 0;
         strBlink = "queue";
+        seqInput = true;
         for (int i = 0; i < re.length() -1; i++){
           char input = re.charAt(i);
           SerialUSB.println(input);
